@@ -1,0 +1,28 @@
+# Entorno virtual
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+extraction.log
+
+# Archivos de salida
+output/
+input/
+
+# IDEs y editores
+.vscode/
+.idea/
+*.swp
+*.swo
