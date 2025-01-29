@@ -1,24 +1,26 @@
-# Extractor y Procesador de Datos Sears
+# Sistema de Extracción y Procesamiento de Datos Sears
 
-Este proyecto consiste en dos scripts principales que trabajan en conjunto para extraer información de PDFs y procesarla en un archivo Excel concentrador.
+Este proyecto consiste en tres scripts principales que trabajan en conjunto para extraer y procesar información de diferentes fuentes y consolidarla en un archivo Excel concentrador.
 
 ## Estructura del Proyecto
 
 ```
 proyecto/
 ├── input/            # Carpeta con los PDFs a procesar
+├── input_csv/        # Carpeta con los CSVs de reportes
 ├── output/           # Carpeta donde se guarda sears_extractions.xlsx
 ├── cruce1/          
 │   ├── Concentrado Sears.xlsx    # Archivo concentrador principal
-│   ├── reporte_merge.xlsx        # Reporte de operaciones de merge
+│   ├── reporte_merge.xlsx        # Reporte de operaciones de merge PDF
+│   ├── reporte_merge_csv.xlsx    # Reporte de operaciones de merge CSV
 │   └── backups/                  # Respaldos automáticos
 └── scripts/         
-    ├── extract.py    # Script de extracción de PDFs
-    ├── merge_data.py # Script de merge con concentrador
-    └── run_all.py    # Script para ejecutar todo el proceso
+    ├── extract.py                # Script de extracción de PDFs
+    ├── merge_data.py            # Script de merge de datos de PDFs
+    └── merge_csv_data.py        # Script de merge de datos de CSVs
 ```
 
-## Pasos de Instalación y Uso
+## Pasos de Instalación
 
 ### 1. Crear entorno virtual
 En macOS/Linux:
@@ -47,65 +49,108 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 4. Proceso de Extracción y Merge
+## Flujo de Trabajo
 
-#### a. Ejecutar solo la extracción
+### 1. Extracción de PDFs (extract.py)
 ```bash
 python scripts/extract.py
 ```
-Este script procesará los PDFs en la carpeta `input/` y generará el archivo `sears_extractions.xlsx` en la carpeta `output/`.
+- Lee PDFs desde la carpeta `input/`
+- Extrae información relevante como números de pedido, fechas, montos
+- Genera `sears_extractions.xlsx` en la carpeta `output/`
+- Mantiene un log detallado en `extraction.log`
 
-#### b. Ejecutar solo el merge
+### 2. Merge de Datos PDF (merge_data.py)
 ```bash
 python scripts/merge_data.py
 ```
-Este script tomará los datos de `sears_extractions.xlsx` y los incorporará al archivo `Concentrado Sears.xlsx`.
+- Lee datos de `sears_extractions.xlsx`
+- Actualiza `Concentrado Sears.xlsx`
+- Maneja casos especiales como pedidos duplicados
+- Suma montos automáticamente cuando corresponde
+- Preserva formatos del Excel
+- Genera respaldos automáticos
+- Mantiene un log en `merge.log`
 
-#### c. Ejecutar el proceso completo
+### 3. Merge de Datos CSV (merge_csv_data.py)
 ```bash
-python scripts/run_all.py
+python scripts/merge_csv_data.py
 ```
-Este comando ejecutará ambos scripts en secuencia.
+- Lee CSVs desde la carpeta `input_csv/`
+- Actualiza columnas específicas en `Concentrado Sears.xlsx` (a partir de la columna AB)
+- Verifica y valida cada campo antes de actualizar
+- Preserva formatos del Excel
+- Genera respaldos automáticos
+- Mantiene un log en `merge_csv.log`
 
-### 5. Revisar los logs (opcional)
-En macOS/Linux:
-```bash
-cat extraction.log
-cat merge.log
-```
+## Características Principales
 
-En Windows:
-```bash
-type extraction.log
-type merge.log
-```
-
-## Funcionalidades Principales
-
-### Extracción (extract.py)
-- Lee PDFs de la carpeta input/
-- Extrae información clave como números de pedido, fechas, montos
-- Genera un archivo Excel con los datos extraídos
-- Mantiene un log detallado del proceso
-
-### Merge (merge_data.py)
-- Procesa la información extraída y la incorpora al archivo concentrador
-- Maneja casos especiales como pedidos duplicados (suma montos automáticamente)
-- Preserva el formato del archivo concentrador
+### Sistema de Respaldos
 - Genera respaldos automáticos antes de cada operación
-- Mantiene un reporte detallado de las operaciones realizadas
+- Mantiene historial de cambios
+- Preserva formatos y estilos del Excel
 
-### Características del Merge
-- Suma automática de pedidos duplicados
-- Registro de operaciones en la columna de observaciones
-- Preservación de formatos y estilos del Excel
-- Sistema de respaldos automáticos
-- Proceso gradual con delays para estabilidad
-- Logging detallado de todas las operaciones
+### Manejo de Duplicados
+- Detecta pedidos duplicados
+- Suma montos automáticamente
+- Registra operaciones en observaciones
+
+### Preservación de Datos
+- No destructivo, solo acumulativo
+- Verifica datos existentes
+- Mantiene integridad de la información
+
+### Logging y Reportes
+- Logs detallados de cada operación
+- Reportes de operaciones realizadas
+- Tracking de cambios y actualizaciones
 
 ## Notas Importantes
-- El script de merge preserva todos los formatos del archivo concentrador
-- Se crean respaldos automáticos antes de cada operación de merge
-- Los pedidos duplicados se suman automáticamente y se registra en observaciones
-- Se pueden procesar tanto archivos individuales como lotes grandes
-- El sistema está diseñado para ser incremental y no destructivo
+
+1. **Procesamiento de PDFs**
+   - Puede procesar uno o múltiples PDFs
+   - Mantiene consistencia en extracciones
+   - Detecta y maneja duplicados
+
+2. **Procesamiento de CSVs**
+   - Verifica cada campo individualmente
+   - No salta archivos procesados previamente
+   - Valida datos existentes
+
+3. **Formato del Excel**
+   - Preserva todos los formatos existentes
+   - Actualiza celda por celda
+   - Mantiene integridad del archivo
+
+4. **Seguridad**
+   - Sistema de respaldos automáticos
+   - Validación de datos
+   - Logs detallados para auditoría
+
+## Logs y Monitoreo
+
+Los logs se pueden revisar en:
+```bash
+# En macOS/Linux:
+cat extraction.log
+cat merge.log
+cat merge_csv.log
+
+# En Windows:
+type extraction.log
+type merge.log
+type merge_csv.log
+```
+
+## Mantenimiento
+
+Para limpiar archivos temporales (opcional):
+```bash
+# En macOS/Linux:
+rm -rf output/*
+rm *.log
+
+# En Windows:
+del output\*
+del *.log
+```
