@@ -8,14 +8,14 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('extraction.log'),
+        logging.FileHandler(os.path.join('EXCELPDFSEARS', 'extraction.log')),
         logging.StreamHandler()
     ]
 )
 
 class SearsExtractor:
     def __init__(self):
-        self.output_file = os.path.join('output', 'sears_extractions.xlsx')
+        self.output_file = os.path.join('EXCELPDFSEARS', 'sears_extractions.xlsx')
         self.processed_data = []
         # Diccionario para mapear tipos de documento
         self.doc_types = {
@@ -87,7 +87,7 @@ class SearsExtractor:
         return doc_analysis
 
     def process_all_pdfs(self):
-        input_dir = 'input'
+        input_dir = 'PDFSEARS'
         for filename in os.listdir(input_dir):
             if filename.endswith('.pdf'):
                 pdf_path = os.path.join(input_dir, filename)

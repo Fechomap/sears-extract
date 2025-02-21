@@ -5,6 +5,8 @@ from datetime import datetime
 import time
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font, numbers  # Importa números para formatos numéricos
+from datetime import datetime
 
 # Configuración de logging
 logging.basicConfig(
@@ -16,30 +18,31 @@ logging.basicConfig(
     ]
 )
 
+
 class SearsCsvMerger:
     def __init__(self):
-        self.input_dir = 'input_csv'
-        self.concentrado_file = os.path.join('cruce1', 'Concentrado Sears.xlsx')
-        self.backup_dir = os.path.join('cruce1', 'backups')
-        self.report_file = os.path.join('cruce1', 'reporte_merge_csv.xlsx')
+        self.input_dir = 'CSVreporte'  # Carpeta donde se encuentran los archivos CSV
+        self.concentrado_file = os.path.join('RESULTADOFINAL', 'Concentrado Sears.xlsx')
+        self.backup_dir = os.path.join('RESULTADOFINAL', 'backups')
+        self.report_file = os.path.join('RESULTADOFINAL', 'reporte_merge_csv.xlsx')
         
         # Mapeo de columnas del CSV a columnas del Excel (comenzando en AB)
         self.column_mapping = {
-            'Pedido': 'AB',            # Columna AB
-            'Marketplace': 'AC',        # Columna AC
-            'Seller': 'AD',            # Columna AD
-            'Monto': 'AE',             # Columna AE
-            'Nombre_producto': 'AF',    # Columna AF
-            'Precio': 'AG',            # Columna AG
-            'sku': 'AH',               # Columna AH
-            'Estatus_pedido': 'AI',    # Columna AI
-            'Estatus_partida': 'AJ',   # Columna AJ
-            'Fecha_Pedido': 'AK',      # Columna AK
-            'IdFulfillment': 'AL',     # Columna AL
-            'NoGuia': 'AM',            # Columna AM
-            'Tipo_envio': 'AN'         # Columna AN
+            'Pedido': 'M',            # Columna AB
+            'Marketplace': 'N',       # Columna AC
+            'Seller': 'O',            # Columna AD
+            'Monto': 'P',             # Columna AE
+            'Nombre_producto': 'Q',   # Columna AF
+            'Precio': 'R',            # Columna AG
+            'sku': 'S',               # Columna AH
+            'Estatus_pedido': 'T',    # Columna AI
+            'Estatus_partida': 'U',   # Columna AJ
+            'Fecha_Pedido': 'V',      # Columna AK
+            'IdFulfillment': 'W',     # Columna AL
+            'NoGuia': 'X',            # Columna AM
+            'Tipo_envio': 'Y'         # Columna AN
         }
-        
+
     def create_backup(self):
         """Crea una copia de respaldo del archivo concentrado antes de modificarlo"""
         if not os.path.exists(self.backup_dir):
@@ -59,25 +62,58 @@ class SearsCsvMerger:
         return cell.value if cell else None
 
     def update_concentrado_cell(self, wb, sheet_name, row_idx, col_letter, value, csv_col):
-        """Actualiza una celda específica preservando el formato"""
+        """Actualiza una celda específica preservando el formato solo si hay un cambio real"""
         ws = wb[sheet_name]
         
         # Obtener valor actual
         current_value = self.get_cell_value(ws, row_idx, col_letter)
         
-        # Convertir ambos valores a string para comparación
-        str_current = str(current_value) if current_value is not None else ""
-        str_value = str(value) if value is not None else ""
+        # Normalizar valores para comparación
+        if isinstance(value, (int, float)) and pd.notna(value):
+            current_float = float(current_value) if pd.notna(current_value) else None
+            new_float = float(value)
+            if current_float == new_float:
+                return False, None  # No hay cambio real
+        elif current_value == value:
+            return False, None  # No hay cambio real
         
-        # Verificar si el valor actual está vacío o es diferente
-        if current_value is None or str_current.strip() == "" or str_current != str_value:
-            target_cell = ws[f"{col_letter}{row_idx}"]
-            old_format = target_cell._style
-            target_cell.value = value
-            target_cell._style = old_format
-            return True, f"{csv_col}: {current_value} -> {value}"
-            
-        return False, None
+        # Si hay un cambio, actualizar la celda
+        target_cell = ws[f"{col_letter}{row_idx}"]
+        old_format = target_cell._style
+        
+        # Convertir el valor al tipo correcto
+        if csv_col == 'Pedido':
+            try:
+                value = int(value)  # Forzar el pedido como número entero
+            except ValueError:
+                pass  # Si no se puede convertir, dejar como está
+        
+        # Manejar fechas
+        if csv_col == 'Fecha_Pedido' and pd.notna(value):
+            try:
+                # Convertir la fecha a un objeto datetime
+                parsed_date = pd.to_datetime(value)
+                value = parsed_date  # Asignar el objeto datetime directamente
+            except Exception as e:
+                logging.warning(f"No se pudo formatear la fecha en columna {csv_col}: {str(e)}")
+        
+        target_cell.value = value
+        
+        # Reaplicar el estilo original
+        target_cell._style = old_format
+
+        # Aplicar formato numérico si es un número
+        if isinstance(value, (int, float)):
+            target_cell.number_format = numbers.FORMAT_NUMBER
+        
+        # Aplicar formato de fecha si es una fecha
+        if csv_col == 'Fecha_Pedido' and pd.notna(value):
+            try:
+                target_cell.number_format = numbers.FORMAT_DATE_DDMMYYYY  # Formato de fecha en Excel
+            except Exception as e:
+                logging.warning(f"No se pudo aplicar el formato de fecha en columna {csv_col}: {str(e)}")
+        
+        return True, f"{csv_col}: {current_value} -> {value}"
 
     def merge_csv_data(self, csv_file):
         try:
@@ -99,16 +135,13 @@ class SearsCsvMerger:
             concentrado_df = pd.read_excel(self.concentrado_file)
             concentrado_df['ORDEN SEARS '] = concentrado_df['ORDEN SEARS '].astype(str)
             
-            # Contadores y reporte
+            # Contadores y listas
             updates = 0
             no_matches = 0
-            report_data = {
-                'Fecha_Proceso': [],
-                'Archivo_Origen': [],
-                'Numero_Pedido': [],
-                'Estado': [],
-                'Detalles': []
-            }
+            matches = 0
+            no_match_pedidos = []
+            match_pedidos = []
+            updated_pedidos = []  # Nueva lista para pedidos con cambios reales
             
             # Procesar cada fila del CSV
             for idx, row in csv_df.iterrows():
@@ -138,50 +171,73 @@ class SearsCsvMerger:
                         except Exception as e:
                             logging.warning(f"Error en columna {csv_col}, pedido {pedido}: {str(e)}")
                     
+                    matches += 1
+                    match_pedidos.append(pedido)
+                    
                     if updates_in_row > 0:
                         updates += 1
+                        updated_pedidos.append(pedido)  # Agregar a lista de actualizados
                         logging.info(f"Pedido {pedido}: {updates_in_row} campos actualizados")
                         if changes:
                             logging.info("Cambios: " + ", ".join(changes))
                     
-                    # Agregar al reporte
-                    report_data['Fecha_Proceso'].append(datetime.now())
-                    report_data['Archivo_Origen'].append(csv_filename)
-                    report_data['Numero_Pedido'].append(pedido)
-                    report_data['Estado'].append('Actualizado' if updates_in_row > 0 else 'Sin cambios')
-                    report_data['Detalles'].append(
-                        f"{updates_in_row} campos actualizados: {', '.join(changes)}" if changes 
-                        else "Datos ya actualizados"
-                    )
                 else:
                     no_matches += 1
+                    no_match_pedidos.append(pedido)
                     logging.warning(f"No se encontró coincidencia para el pedido: {pedido}")
-                    
-                    # Agregar al reporte
-                    report_data['Fecha_Proceso'].append(datetime.now())
-                    report_data['Archivo_Origen'].append(csv_filename)
-                    report_data['Numero_Pedido'].append(pedido)
-                    report_data['Estado'].append('No encontrado')
-                    report_data['Detalles'].append('Pedido no existe en Concentrado Sears')
             
             # Guardar archivo actualizado
             logging.info("Guardando archivo actualizado...")
             wb.save(self.concentrado_file)
             
-            # Actualizar reporte
-            report_df = pd.DataFrame(report_data)
-            if os.path.exists(self.report_file):
-                existing_report = pd.read_excel(self.report_file)
-                report_df = pd.concat([existing_report, report_df], ignore_index=True)
-            report_df.to_excel(self.report_file, index=False)
+            # Determinar el número máximo de filas necesarias
+            max_rows = max(len(match_pedidos), len(updated_pedidos), len(no_match_pedidos))
             
-            # Resumen
+            # Crear el reporte con tres columnas y un solo encabezado
+            report_data = {
+                'Registros encontrados': match_pedidos + [''] * (max_rows - len(match_pedidos)),
+                'Registros actualizados': updated_pedidos + [''] * (max_rows - len(updated_pedidos)),
+                'Registros sin coincidencia': no_match_pedidos + [''] * (max_rows - len(no_match_pedidos))
+            }
+            report_df = pd.DataFrame(report_data)
+            
+            # Guardar el reporte con encabezados en negritas y formato numérico en las celdas
+            with pd.ExcelWriter(self.report_file, engine='openpyxl') as writer:
+                report_df.to_excel(writer, index=False, sheet_name='Reporte')
+                workbook = writer.book
+                worksheet = writer.sheets['Reporte']
+                
+                # Aplicar formato en negritas al encabezado
+                bold_font = Font(bold=True)
+                for col, header in enumerate(report_df.columns, 1):
+                    cell = worksheet.cell(row=1, column=col)
+                    cell.value = header
+                    cell.font = bold_font
+                
+                # Aplicar formato numérico a las columnas específicas
+                numeric_columns = ['Registros encontrados', 'Registros actualizados', 'Registros sin coincidencia']
+                for col_idx, col_name in enumerate(report_df.columns, 1):
+                    if col_name in numeric_columns:  # Solo aplica formato a las columnas numéricas
+                        for row_idx in range(2, len(report_df) + 2):  # Itera sobre las filas de datos (fila 2 en adelante)
+                            cell = worksheet.cell(row=row_idx, column=col_idx)
+                            try:
+                                # Intenta convertir el valor a número y aplica formato
+                                cell.value = float(cell.value) if cell.value else None
+                                cell.number_format = numbers.FORMAT_NUMBER  # Formato de número entero
+                            except ValueError:
+                                # Si no se puede convertir, deja la celda como está
+                                pass
+            
+            # Resumen en logs
             logging.info(f"""
             Resumen del proceso de merge CSV:
             Archivo: {csv_filename}
             - Total de registros: {len(csv_df)}
+            - Registros encontrados: {matches}
             - Registros actualizados: {updates}
-            - Sin coincidencia: {no_matches}
+            - Registros sin coincidencia: {no_matches}
+            - Pedidos encontrados: {', '.join(match_pedidos)}
+            - Pedidos no encontrados: {', '.join(no_match_pedidos)}
             
             El reporte detallado se ha guardado en: {self.report_file}
             """)
@@ -191,7 +247,7 @@ class SearsCsvMerger:
             raise
 
     def process_all_csvs(self):
-        """Procesa todos los CSVs en la carpeta input_csv"""
+        """Procesa todos los CSVs en la carpeta CSVreporte"""
         if not os.path.exists(self.input_dir):
             os.makedirs(self.input_dir)
             logging.info(f"Carpeta {self.input_dir} creada")

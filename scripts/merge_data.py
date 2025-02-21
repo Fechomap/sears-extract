@@ -2,8 +2,9 @@ import os
 import pandas as pd
 import logging
 from datetime import datetime
-import time
 from openpyxl import load_workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.styles import Font, numbers
 
 # Configuración de logging
 logging.basicConfig(
@@ -17,11 +18,11 @@ logging.basicConfig(
 
 class SearsMerger:
     def __init__(self):
-        self.output_file = os.path.join('output', 'sears_extractions.xlsx')
-        self.concentrado_file = os.path.join('cruce1', 'Concentrado Sears.xlsx')
-        self.backup_dir = os.path.join('cruce1', 'backups')
-        self.report_file = os.path.join('cruce1', 'reporte_merge.xlsx')
-        
+        self.output_file = os.path.join('EXCELPDFSEARS', 'sears_extractions.xlsx')
+        self.concentrado_file = os.path.join('RESULTADOFINAL', 'Concentrado Sears.xlsx')
+        self.backup_dir = os.path.join('RESULTADOFINAL', 'backups')
+        self.report_file = os.path.join('RESULTADOFINAL', 'reporte_merge.xlsx')
+
     def create_backup(self):
         """Crea una copia de respaldo del archivo concentrado antes de modificarlo"""
         if not os.path.exists(self.backup_dir):
@@ -31,7 +32,6 @@ class SearsMerger:
         backup_file = os.path.join(self.backup_dir, f'Concentrado_Sears_backup_{timestamp}.xlsx')
         
         if os.path.exists(self.concentrado_file):
-            # Copiar el archivo preservando el formato
             wb = load_workbook(self.concentrado_file)
             wb.save(backup_file)
             logging.info(f"Backup creado: {backup_file}")
@@ -47,9 +47,6 @@ class SearsMerger:
         
         for pedido in pedidos_duplicados:
             registros = extractions_df[extractions_df['Numero_Pedido'] == pedido]
-            
-            # Pequeño delay para estabilidad
-            time.sleep(0.1)
             
             # Sumar los totales
             total_sumado = registros['Total'].sum()
@@ -72,38 +69,23 @@ class SearsMerger:
         
         return processed_data, pedidos_duplicados
 
-    def update_concentrado_cell(self, wb, sheet_name, row_idx, col_name, value):
-        """Actualiza una celda específica preservando el formato"""
-        ws = wb[sheet_name]
-        # Encontrar el índice de la columna
-        header_row = 1  # Asumiendo que el encabezado está en la primera fila
-        for idx, cell in enumerate(ws[header_row], 1):
-            if cell.value == col_name:
-                col_idx = idx
-                break
-        else:
-            return
-        
-        # Preservar el formato existente
-        target_cell = ws.cell(row=row_idx, column=col_idx)
-        old_format = target_cell._style
-        target_cell.value = value
-        target_cell._style = old_format
-        
     def merge_data(self):
         try:
             # Crear backup antes de comenzar
             self.create_backup()
-            time.sleep(0.5)  # Delay para asegurar que el backup se complete
             
             # Leer el archivo de extracciones
             logging.info("Leyendo archivo de extracciones...")
             extractions_df = pd.read_excel(self.output_file)
             
-            # Leer el archivo concentrado preservando el formato
+            # Convertir columnas de fecha a datetime
+            date_columns = ['Fecha_Pedido', 'Fecha_Vencimiento']
+            for col in date_columns:
+                if col in extractions_df.columns:
+                    extractions_df[col] = pd.to_datetime(extractions_df[col], errors='coerce')  # Convertir a datetime
+            
+            # Leer el archivo concentrado
             logging.info("Leyendo archivo concentrado...")
-            wb = load_workbook(self.concentrado_file)
-            ws = wb.active
             concentrado_df = pd.read_excel(self.concentrado_file)
             
             # Asegurar tipos de datos correctos
@@ -117,11 +99,16 @@ class SearsMerger:
             updates = 0
             no_matches = 0
             
+            # Cargar el archivo existente con openpyxl
+            wb = load_workbook(self.concentrado_file)
+            ws = wb.active
+            
+            # Obtener el mapeo de columnas por nombre
+            column_mapping = {cell.value: idx + 1 for idx, cell in enumerate(ws[1])}  # Mapeo de nombres a índices
+            
             # Iterar sobre las filas del archivo de extracciones
             for idx, row in extractions_df.iterrows():
                 pedido = row['Numero_Pedido']
-                
-                time.sleep(0.05)  # Pequeño delay entre actualizaciones
                 
                 # Si es un duplicado y ya lo procesamos, saltarlo
                 if pedido in pedidos_duplicados and pedido not in processed_duplicates:
@@ -129,16 +116,25 @@ class SearsMerger:
                 
                 # Buscar coincidencia en el archivo concentrado
                 mask = concentrado_df['ORDEN SEARS '] == pedido
-                
                 if mask.any():
+                    # Encontrar la fila correspondiente
                     row_idx = mask.idxmax() + 2  # +2 porque Excel usa 1-based indexing y tiene encabezado
                     
                     if pedido in processed_duplicates:
                         datos = processed_duplicates[pedido]
-                        # Actualizar campos preservando formato
-                        self.update_concentrado_cell(wb, ws.title, row_idx, 'Total', datos['Total'])
-                        self.update_concentrado_cell(wb, ws.title, row_idx, 'OBSERVACIONES ', 
-                                                  f"SUMA DE PRODUCTOS - Documentos: {datos['documentos_sumados']}")
+                        # Actualizar campos usando el mapeo de columnas
+                        ws.cell(row=row_idx, column=column_mapping['Total']).value = datos['Total']
+                        ws.cell(row=row_idx, column=column_mapping['OBSERVACIONES ']).value = (
+                            f"SUMA DE PRODUCTOS - Documentos: {datos['documentos_sumados']}"
+                        )
+                        
+                        # Formatear fechas si existen
+                        if 'Fecha_Pedido' in datos and pd.notna(datos['Fecha_Pedido']):
+                            ws.cell(row=row_idx, column=column_mapping['Fecha_Pedido']).value = datos['Fecha_Pedido']
+                            ws.cell(row=row_idx, column=column_mapping['Fecha_Pedido']).number_format = "dd/mm/yyyy"
+                        if 'Fecha_Vencimiento' in datos and pd.notna(datos['Fecha_Vencimiento']):
+                            ws.cell(row=row_idx, column=column_mapping['Fecha_Vencimiento']).value = datos['Fecha_Vencimiento']
+                            ws.cell(row=row_idx, column=column_mapping['Fecha_Vencimiento']).number_format = "dd/mm/yyyy"
                         
                         updates += 1
                         logging.info(f"""
@@ -147,17 +143,26 @@ class SearsMerger:
                         Documentos: {datos['documentos_sumados']}
                         """)
                     else:
-                        # Actualizar campos preservando formato
-                        for campo in ['Total', 'Fecha_Pedido', 'Fecha_Vencimiento', 
-                                    'Numero_Documento', 'Tipo_Docto', 'Descripcion', 
-                                    'Cheque', 'Proveedor']:
-                            self.update_concentrado_cell(wb, ws.title, row_idx, campo, row[campo])
+                        # Actualizar campos usando el mapeo de columnas
+                        ws.cell(row=row_idx, column=column_mapping['Total']).value = row['Total']
+                        if pd.notna(row['Fecha_Pedido']):
+                            ws.cell(row=row_idx, column=column_mapping['Fecha_Pedido']).value = row['Fecha_Pedido']
+                            ws.cell(row=row_idx, column=column_mapping['Fecha_Pedido']).number_format = "dd/mm/yyyy"
+                        if pd.notna(row['Fecha_Vencimiento']):
+                            ws.cell(row=row_idx, column=column_mapping['Fecha_Vencimiento']).value = row['Fecha_Vencimiento']
+                            ws.cell(row=row_idx, column=column_mapping['Fecha_Vencimiento']).number_format = "dd/mm/yyyy"
+                        ws.cell(row=row_idx, column=column_mapping['Numero_Documento']).value = int(row['Numero_Documento']) if pd.notna(row['Numero_Documento']) else None
+                        ws.cell(row=row_idx, column=column_mapping['Tipo_Docto']).value = row['Tipo_Docto']
+                        ws.cell(row=row_idx, column=column_mapping['Descripcion']).value = row['Descripcion']
+                        ws.cell(row=row_idx, column=column_mapping['Cheque']).value = row['Cheque']
+                        ws.cell(row=row_idx, column=column_mapping['Proveedor']).value = row['Proveedor']
+                        
                         updates += 1
                 else:
                     no_matches += 1
                     logging.warning(f"No se encontró coincidencia para el pedido: {pedido}")
             
-            # Guardar el archivo actualizado preservando formato
+            # Guardar el archivo actualizado
             logging.info("Guardando archivo actualizado...")
             wb.save(self.concentrado_file)
             
@@ -168,9 +173,7 @@ class SearsMerger:
             - Registros actualizados: {updates}
             - Registros sin coincidencia: {no_matches}
             """)
-            
             logging.info("Proceso de merge completado exitosamente")
-            
         except Exception as e:
             logging.error(f"Error durante el proceso de merge: {str(e)}")
             raise
