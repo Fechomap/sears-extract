@@ -1,31 +1,57 @@
 # Virtual Environment
 venv/
 env/
+.env
 
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
 # Logs
 *.log
+logs/
 
-# Archivos temporales
-output/*
-!output/.gitkeep
+# Folders de trabajo
+PDFSEARS/*
+!PDFSEARS/.gitkeep
+CSVreporte/*
+!CSVreporte/.gitkeep
+EXCELPDFSEARS/*
+!EXCELPDFSEARS/.gitkeep
+RESULTADOFINAL/*
+!RESULTADOFINAL/.gitkeep
 
-# Archivos de Excel
-*.xlsx
-!requirements.txt
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Backups
-cruce1/backups/
-
-# VS Code
-.vscode/
-
-# PyCharm
+# IDEs y editores
 .idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# macOS
+# Sistema operativo
 .DS_Store
+Thumbs.db
