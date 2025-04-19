@@ -10,7 +10,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(os.path.join('EXCELPDFSEARS', 'extraction.log')),
+        logging.FileHandler(os.path.join('logs', 'extract.log')), # Changed log file path
         logging.StreamHandler()
     ]
 )

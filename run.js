@@ -3,7 +3,12 @@ const fs = require('fs');
 const path = require('path');
 
 // Configuración de logging
-const logFile = path.join(__dirname, 'universal_script.log');
+const logsDir = path.join(__dirname, 'logs');
+// Asegurar que la carpeta logs existe
+if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+}
+const logFile = path.join(logsDir, 'run.log'); // Cambiado a logs/run.log
 const logStream = fs.createWriteStream(logFile, { flags: 'a' });
 
 function log(message) {

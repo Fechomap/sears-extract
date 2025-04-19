@@ -13,7 +13,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('merge_csv.log'),
+        logging.FileHandler(os.path.join('logs', 'merge_csv.log')), # Changed log file path
         logging.StreamHandler()
     ]
 )
